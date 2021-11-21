@@ -1,0 +1,29 @@
+\begin{thebibliography}{1}
+
+\bibitem{albawi2017understanding}
+Saad Albawi, Tareq~Abed Mohammed, and Saad Al-Zawi.
+\newblock Understanding of a convolutional neural network.
+\newblock In {\em 2017 International Conference on Engineering and Technology
+  (ICET)}, pages 1--6. Ieee, 2017.
+
+\bibitem{neumann2017attentive}
+Michael Neumann and Ngoc~Thang Vu.
+\newblock Attentive convolutional neural network based speech emotion
+  recognition: A study on the impact of input features, signal length, and
+  acted speech.
+\newblock {\em arXiv preprint arXiv:1706.00612}, 2017.
+
+\bibitem{han2020survey}
+Kai Han, Yunhe Wang, Hanting Chen, Xinghao Chen, Jianyuan Guo, Zhenhua Liu,
+  Yehui Tang, An~Xiao, Chunjing Xu, Yixing Xu, et~al.
+\newblock A survey on visual transformer.
+\newblock {\em arXiv preprint arXiv:2012.12556}, 2020.
+
+\bibitem{tolstikhin2021mlp}
+Ilya Tolstikhin, Neil Houlsby, Alexander Kolesnikov, Lucas Beyer, Xiaohua Zhai,
+  Thomas Unterthiner, Jessica Yung, Andreas Steiner, Daniel Keysers, Jakob
+  Uszkoreit, et~al.
+\newblock Mlp-mixer: An all-mlp architecture for vision.
+\newblock {\em arXiv preprint arXiv:2105.01601}, 2021.
+
+\end{thebibliography}

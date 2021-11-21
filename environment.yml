@@ -1,0 +1,14 @@
+name: mlpmixers_study
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+  - anaconda
+dependencies:
+  - python==3.9
+  - pip==21.3.1
+  - pytorch==1.9.0
+  - torchvision==0.10.0
+  - cudatoolkit==11.1.1
+  - pip:
+      - -r requirements.txt

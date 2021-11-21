@@ -1,0 +1,76 @@
+% Created 2021-11-20 Sat 18:33
+% Intended LaTeX compiler: pdflatex
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{grffile}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{textcomp}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\author{Alex Morehead}
+\date{\today}
+\title{Are MLPs all you need for computer vision?\\\medskip
+\large Final Project for Intro to Computational Intelligence in Fall 2021}
+\hypersetup{
+ pdfauthor={Alex Morehead},
+ pdftitle={Are MLPs all you need for computer vision?},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={Emacs 27.2 (Org mode 9.5)}, 
+ pdflang={English}}
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\newpage
+
+\section{Abstract}
+\label{sec:orgea26f93}
+Convolutional Neural Networks (CNNs) are to date a standard class of deep
+learning algorithms for learning from image-like data
+\cite{albawi2017understanding}. Recently, alternative types of neural networks
+such as Attentive CNNs \cite{neumann2017attentive}, Vision Transformers
+\cite{han2020survey}, and MLP-Mixers \cite{tolstikhin2021mlp} have been proposed for
+tasks in computer vision. Interestingly, MLP-Mixers have been succinctly
+designed to simultaneously incorporate the advantages of multilayer perceptrons
+(MLPs), CNNs, and Transformers (i.e., per-location features and patch-based
+spatial information) for image-based deep learning. However, there are currently
+few explorations in the literature on comparing these new MLP vision models to
+their standard MLP and shared weight neural network (SWNN) counterparts. In this
+work, I propose to investigate the effect of the location and patch-based
+feature mixing techniques that MLP-Mixers apply to see their effect on the
+model's image classification performance. My study will make use of benchmark
+computer vision datasets such as the MNIST and ImageNet datasets to allow
+meaningful comparisons of the classification results presented by the MLP-Mixer
+with those offered by standard MLPs and SWNNs.
+\section{Introduction}
+\label{sec:org8d17cdb}
+\subsection{Motivation}
+\label{sec:orgf95f681}
+Over the last few years, a litany of new neural network architectures have
+recently been proposed for computer vision tasks. Lagging behind these new
+models, however, are thorough case studies examining their relationship to
+historically-grounded neural networks such as MLPs and CNNs. Conducting more of
+such case studies could lead to an enhanced understanding of the true amount of
+progress that has been made in image-based deep learning.
+
+\section{Conclusion}
+\label{sec:orgc3cf4c1}
+Through this project, we will see that MLP Mixers achieve impressive results for
+image classification by distilling the advantages of contemporary computer
+vision learning algorithms such as CNNs and Transformers into a single simple
+network.
+\newpage
+\section{References}
+\label{sec:orgfb6d2c5}
+\bibliographystyle{unsrt}
+\bibliography{../../../../../../../Bibliographies/mindmeld}
+\end{document}

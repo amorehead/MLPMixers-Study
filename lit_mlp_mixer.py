@@ -6,22 +6,16 @@ import pytorch_lightning as pl
 # PyTorch
 import torch
 # PL callbacks
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
-# Declare system hyperparameters
-from modules import LitMLPMixer
+# Project utilities
+from constants import RAND_SEED, DATASET_PATH, CHECKPOINT_BASE_PATH, CHECKPOINT_PATH, BATCH_SIZE, AVAIL_GPUS
+from modules import LitMLPMixer, LitMLP, LitCNN
 
-AVAIL_GPUS = min(1, torch.cuda.device_count())
-BATCH_SIZE = 1 if AVAIL_GPUS else 1
-DATASET_PATH = '~/data/'  # Path to the folder where the datasets are/should be downloaded
-CHECKPOINT_BASE_PATH = '~/savedmodels/'  # Path to the folder where the pretrained models are saved
-CHECKPOINT_PATH = os.path.join(CHECKPOINT_BASE_PATH, "NNs/")
-RAND_SEED = 42
-
+"""Declare system hyperparameters"""
 # Set the seed
 pl.seed_everything(RAND_SEED)
 
@@ -40,8 +34,9 @@ val_ds = MNIST(DATASET_PATH, train=False, download=True, transform=transforms.To
 test_ds = MNIST(DATASET_PATH, train=False, download=True, transform=transforms.ToTensor())
 
 
-def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset, c_hidden, num_layers, dp_rate):
-    pl.seed_everything(42)
+def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
+                           c_hidden, num_layers, dp_rate, log_with_wandb):
+    pl.seed_everything(RAND_SEED)
 
     # Init DataLoader from MNIST Dataset
     train_data_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, num_workers=1)
@@ -53,47 +48,44 @@ def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
     os.makedirs(root_dir, exist_ok=True)
     trainer = pl.Trainer(
         default_root_dir=root_dir,
-        callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_acc")],
+        callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_acc", save_top_k=3, save_last=True),
+                   EarlyStopping(monitor='val_acc', min_delta=3e-4, patience=10)],
         gpus=AVAIL_GPUS,
-        max_epochs=200,
-        progress_bar_refresh_rate=0,
-    )  # 0 because epoch size is 1
+        max_epochs=50,
+        progress_bar_refresh_rate=0
+    )
 
     # Set up logger for Lightning
-    trainer.logger = pl.loggers.WandbLogger(
-        project='MLPMixers-Study'
-    )
+    if log_with_wandb:
+        trainer.logger = pl.loggers.WandbLogger(
+            project='MLPMixers-Study',
+            name="ImageClassification" + model_name
+        )
 
     # Initialize new model
-    pl.seed_everything()
-    model = LitMLPMixer(
-        c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers, dp_rate=dp_rate
-    )
+    pl.seed_everything(seed=RAND_SEED)
+    if model_name.lower() == 'mlp':
+        model = LitMLP(dp_rate=dp_rate)
+    elif model_name.lower() == 'mlpmixer':
+        model = LitMLPMixer(c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers, dp_rate=dp_rate)
+    elif model_name.lower() == 'cnn':
+        model = LitCNN(c_in=1, c_out=10, c_hidden=c_hidden, dp_rate=dp_rate)
+    else:
+        raise NotImplementedError(f'The model {model_name} is not currently implemented')
+
+    # Train new model
     trainer.fit(model, train_dataloaders=train_data_loader, val_dataloaders=val_data_loader)
-    model = LitMLPMixer.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
 
     # Test best model on the test set
-    test_result = trainer.test(model, test_dataloaders=test_data_loader, verbose=False)
-    batch = next(iter(test_data_loader))
-    batch[0] = batch[0].to(model.device)
-    batch[1] = batch[1].to(model.device)
-    _, train_acc = model.forward(batch, mode="train")
-    _, val_acc = model.forward(batch, mode="val")
-    result = {"train": train_acc, "val": val_acc, "test": test_result[0]["test_acc"]}
-    return model, result
+    model = model.__class__.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+    trainer.test(model, test_dataloaders=test_data_loader)
+
+    # Return best model
+    return model
 
 
-# Small function for printing the test scores
-def print_results(result_dict):
-    if "train" in result_dict:
-        print("Train accuracy: %4.2f%%" % (100.0 * result_dict["train"]))
-    if "val" in result_dict:
-        print("Val accuracy:   %4.2f%%" % (100.0 * result_dict["val"]))
-    print("Test accuracy:  %4.2f%%" % (100.0 * result_dict["test"]))
-
-
-image_nn_model, image_nn_result = train_image_classifier(
-    model_name='MLPMixer', train_dataset=train_ds, val_dataset=val_ds,
-    test_dataset=test_ds, c_hidden=16, num_layers=2, dp_rate=0.1
-)
-print_results(image_nn_result)
+if __name__ == '__main__':
+    image_nn_model = train_image_classifier(
+        model_name='MLP', train_dataset=train_ds, val_dataset=val_ds,
+        test_dataset=test_ds, c_hidden=64, num_layers=5, dp_rate=0.5, log_with_wandb=True
+    )

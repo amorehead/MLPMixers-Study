@@ -65,7 +65,7 @@ def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
     # Initialize new model
     pl.seed_everything(seed=RAND_SEED)
     if model_name.lower() == 'mlp':
-        model = LitMLP(dp_rate=dp_rate)
+        model = LitMLP(c_out=10, c_hidden=c_hidden, dp_rate=dp_rate)
     elif model_name.lower() == 'mlpmixer':
         model = LitMLPMixer(c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers, dp_rate=dp_rate)
     elif model_name.lower() == 'cnn':
@@ -86,6 +86,6 @@ def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
 
 if __name__ == '__main__':
     image_nn_model = train_image_classifier(
-        model_name='MLP', train_dataset=train_ds, val_dataset=val_ds,
-        test_dataset=test_ds, c_hidden=64, num_layers=5, dp_rate=0.5, log_with_wandb=True
+        model_name='CNN', train_dataset=train_ds, val_dataset=val_ds,
+        test_dataset=test_ds, c_hidden=128, num_layers=5, dp_rate=0.2, log_with_wandb=True
     )

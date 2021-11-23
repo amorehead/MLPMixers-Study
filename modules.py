@@ -59,27 +59,22 @@ def MLPMixer(*, image_size, channels, patch_size, dim, depth, num_classes, expan
 class LitMLP(pl.LightningModule):
     """An MLP training module via PyTorch Lightning."""
 
-    def __init__(self, dp_rate):
+    def __init__(self, c_out, c_hidden, dp_rate):
         super().__init__()
         # Define MLP layers
         self.layers = nn.ModuleList([
             # MLP Block 1
-            nn.Linear(28 * 28, 128),
+            nn.Linear(28 * 28, c_hidden),
             nn.ReLU(),
             nn.Dropout(p=dp_rate, inplace=True),
 
             # MLP Block 2
-            nn.Linear(128, 8),
+            nn.Linear(c_hidden, c_hidden * 2),
             nn.ReLU(),
             nn.Dropout(p=dp_rate, inplace=True),
 
             # MLP Block 3
-            nn.Linear(8, 128),
-            nn.ReLU(),
-            nn.Dropout(p=dp_rate, inplace=True),
-
-            # MLP Block 3
-            nn.Linear(128, 10)
+            nn.Linear(c_hidden * 2, c_out)
         ])
 
         # Establish softmax, loss, and metric functions
@@ -134,7 +129,7 @@ class LitMLP(pl.LightningModule):
         self.acc.reset()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
         return optimizer
 
 
@@ -199,7 +194,7 @@ class LitMLPMixer(pl.LightningModule):
         self.acc.reset()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
         return optimizer
 
 
@@ -278,5 +273,5 @@ class LitCNN(pl.LightningModule):
         self.acc.reset()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
         return optimizer

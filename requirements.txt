@@ -1,6 +1,8 @@
 # MLPMixers-Study requirements
-torchmetrics==0.6.0
+torchmetrics==0.6.1
 wandb==0.12.7
-pytorch-lightning==1.5.2
+pytorch-lightning==1.5.5
 fairscale==0.4.3
 einops==0.3.2
+matplotlib==3.5.0
+scikit-learn==1.0.1

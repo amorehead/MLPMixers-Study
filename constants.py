@@ -11,3 +11,4 @@ RAND_SEED = 42  # Random seed for reproducibility
 DATASET_PATH = '~/data/'  # Path to the folder where the datasets are/should be downloaded
 CHECKPOINT_BASE_PATH = '~/savedmodels/'  # Path to the folder where the pretrained models are saved
 CHECKPOINT_PATH = os.path.join(CHECKPOINT_BASE_PATH, "NNs/")  # Where to save checkpoints
+NUM_CLASSES = 10  # Number of classes in the MNIST dataset

@@ -9,7 +9,7 @@ import torch
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torchvision.datasets import MNIST
+from torchvision.datasets import MNIST, FashionMNIST
 
 # Project utilities
 from constants import RAND_SEED, DATASET_PATH, CHECKPOINT_BASE_PATH, CHECKPOINT_PATH, BATCH_SIZE, AVAIL_GPUS
@@ -28,17 +28,22 @@ os.makedirs(DATASET_PATH, exist_ok=True)
 os.makedirs(CHECKPOINT_BASE_PATH, exist_ok=True)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
-# Init MNIST dataset
-train_ds = MNIST(DATASET_PATH, train=True, download=True, transform=transforms.ToTensor())
-val_ds = MNIST(DATASET_PATH, train=False, download=True, transform=transforms.ToTensor())
-test_ds = MNIST(DATASET_PATH, train=False, download=True, transform=transforms.ToTensor())
+# Define requested model and dataset
+model_name = 'MLPMixer'  # Choices are ['MLP', 'MLPMixer', 'CNN']
+dataset_name = 'MNIST'  # Choices are ['MNIST', 'FASHION-MNIST']
+
+# Init requested dataset
+dataset = FashionMNIST if 'fashion' in dataset_name.strip().lower() else MNIST
+train_ds = dataset(DATASET_PATH, train=True, download=True, transform=transforms.ToTensor())
+val_ds = dataset(DATASET_PATH, train=False, download=True, transform=transforms.ToTensor())
+test_ds = dataset(DATASET_PATH, train=False, download=True, transform=transforms.ToTensor())
 
 
-def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
+def train_image_classifier(model_name, dataset_name, train_dataset, val_dataset, test_dataset,
                            c_hidden, num_layers, dp_rate, log_with_wandb):
     pl.seed_everything(RAND_SEED)
 
-    # Init DataLoader from MNIST Dataset
+    # Init DataLoader from Dataset
     train_data_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, num_workers=1)
     val_data_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=1)
     test_data_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, num_workers=1)
@@ -48,8 +53,8 @@ def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
     os.makedirs(root_dir, exist_ok=True)
     trainer = pl.Trainer(
         default_root_dir=root_dir,
-        callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_acc", save_top_k=3, save_last=True),
-                   EarlyStopping(monitor='val_acc', min_delta=3e-4, patience=10)],
+        callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_f1", save_top_k=3, save_last=True),
+                   EarlyStopping(monitor='val_f1', min_delta=3e-5, patience=50)],
         gpus=AVAIL_GPUS,
         max_epochs=50,
         progress_bar_refresh_rate=0
@@ -65,11 +70,13 @@ def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
     # Initialize new model
     pl.seed_everything(seed=RAND_SEED)
     if model_name.lower() == 'mlp':
-        model = LitMLP(c_out=10, c_hidden=c_hidden, dp_rate=dp_rate)
+        model = LitMLP(c_out=10, c_hidden=c_hidden, dp_rate=dp_rate, dataset_name=dataset_name)
     elif model_name.lower() == 'mlpmixer':
-        model = LitMLPMixer(c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers, dp_rate=dp_rate)
+        model = LitMLPMixer(
+            c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers, dp_rate=dp_rate, dataset_name=dataset_name
+        )
     elif model_name.lower() == 'cnn':
-        model = LitCNN(c_in=1, c_out=10, c_hidden=c_hidden, dp_rate=dp_rate)
+        model = LitCNN(c_in=1, c_out=10, c_hidden=c_hidden, dp_rate=dp_rate, dataset_name=dataset_name)
     else:
         raise NotImplementedError(f'The model {model_name} is not currently implemented')
 
@@ -85,8 +92,7 @@ def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
 
 
 if __name__ == '__main__':
-    model_name = 'CNN'  # Choices are ['MLP', 'MLPMixer', 'CNN']
     image_nn_model = train_image_classifier(
-        model_name=model_name, train_dataset=train_ds, val_dataset=val_ds,
-        test_dataset=test_ds, c_hidden=128, num_layers=5, dp_rate=0.2, log_with_wandb=True
+        model_name=model_name, dataset_name=dataset_name, train_dataset=train_ds, val_dataset=val_ds,
+        test_dataset=test_ds, c_hidden=256, num_layers=8, dp_rate=0.2, log_with_wandb=True
     )

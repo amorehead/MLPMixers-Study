@@ -13,7 +13,7 @@ from einops.layers.torch import Rearrange, Reduce
 
 # Einstein operations
 import wandb
-from constants import NUM_CLASSES, MNIST_CLASS_NAMES
+from constants import NUM_CLASSES, MNIST_CLASS_NAMES, FASHION_MNIST_CLASS_NAMES
 
 
 class PreNormResidual(nn.Module):
@@ -61,7 +61,7 @@ def MLPMixer(*, image_size, channels, patch_size, dim, depth, num_classes, expan
 class LitMLP(pl.LightningModule):
     """An MLP training module via PyTorch Lightning."""
 
-    def __init__(self, c_out, c_hidden, dp_rate):
+    def __init__(self, c_out, c_hidden, dp_rate, dataset_name):
         super().__init__()
         # Define MLP layers
         self.layers = nn.ModuleList([
@@ -79,10 +79,26 @@ class LitMLP(pl.LightningModule):
             nn.Linear(c_hidden * 2, c_out)
         ])
 
-        # Establish softmax, loss, and metric functions
-        self.softmax_fn = torch.log_softmax
+        # Declare shared function(s)
         self.loss_fn = F.nll_loss
-        self.acc = tm.Accuracy()
+        self.softmax_fn = torch.log_softmax
+
+        # Define step-specific metrics
+        # Train #
+        self.train_acc = tm.Accuracy()
+        # Val #
+        self.val_acc = tm.Accuracy()
+        self.val_prec = tm.Precision()
+        self.val_recall = tm.Recall()
+        self.val_f1 = tm.F1()
+        # Test #
+        self.test_acc = tm.Accuracy()
+        self.test_prec = tm.Precision()
+        self.test_recall = tm.Recall()
+        self.test_f1 = tm.F1()
+
+        # Capture name of dataset being used
+        self.dataset_name = dataset_name.strip().lower()
 
         # Save hyperparameters within LightningModule
         self.save_hyperparameters()
@@ -102,33 +118,75 @@ class LitMLP(pl.LightningModule):
         # Loss and accuracy calculation
         x = self.softmax_fn(x, dim=1)
         loss = self.loss_fn(x, labels)
-        acc = self.acc(x, labels)
 
-        return loss, acc
+        return x, labels, loss
 
-    def training_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
+    def training_step(self, *args, **kwargs) -> pl.utilities.types.STEP_OUTPUT:
+        x, labels, loss = self.shared_step(args[0])
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        return loss
+        self.log("train_acc", self.train_acc(x, labels), on_step=False, on_epoch=True)
+
+        return {
+            'loss': loss
+        }
 
     def training_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+        # Reset training metrics
+        self.train_acc.reset()
 
-    def validation_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
-        self.log("val_loss", loss)
-        self.log("val_acc", acc)
+    def validation_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
+        x, labels, loss = self.shared_step(args[0])
+        self.log('val_loss', loss)
+        self.log("val_acc", self.val_acc(x, labels))
+        self.log("val_prec", self.val_prec(x, labels))
+        self.log("val_recall", self.val_recall(x, labels))
+        self.log("val_f1", self.val_f1(x, labels))
+
+        return {
+            'loss': loss,
+            'x': x,
+            'labels': labels
+        }
 
     def validation_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+        # Reset validation metrics
+        self.val_acc.reset()
+        self.val_prec.reset()
+        self.val_recall.reset()
+        self.val_f1.reset()
 
-    def test_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
-        self.log("test_loss", loss)
-        self.log("test_acc", acc)
+    def test_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
+        x, labels, loss = self.shared_step(args[0])
+        self.log('test_loss', loss)
+        self.log("test_acc", self.test_acc(x, labels))
+        self.log("test_prec", self.test_prec(x, labels))
+        self.log("test_recall", self.test_recall(x, labels))
+        self.log("test_f1", self.test_f1(x, labels))
+
+        return {
+            'loss': loss,
+            'x': x,
+            'labels': labels
+        }
 
     def test_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+        # Reset test metrics
+        self.test_acc.reset()
+        self.test_prec.reset()
+        self.test_recall.reset()
+        self.test_f1.reset()
+        # Plot total test confusion matrix
+        xs = torch.cat([output['x'] for output in outputs])
+        labels = torch.cat([output['labels'] for output in outputs])
+        class_names = FASHION_MNIST_CLASS_NAMES if 'fashion' in self.dataset_name else MNIST_CLASS_NAMES
+        title = 'Fashion MNIST Confusion Matrix' if 'fashion' in self.dataset_name else 'MNIST Confusion Matrix'
+        total_test_conf_mat = wandb.plot.confusion_matrix(
+            y_true=labels.cpu().numpy(),
+            probs=xs.cpu().numpy(),
+            class_names=class_names,
+            title=title
+        )
+        self.trainer.logger.experiment.log({'test_conf_mat': total_test_conf_mat})
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
@@ -138,7 +196,7 @@ class LitMLP(pl.LightningModule):
 class LitMLPMixer(pl.LightningModule):
     """An MLP-Mixer training module via PyTorch Lightning."""
 
-    def __init__(self, c_in, c_out, c_hidden, num_layers, dp_rate):
+    def __init__(self, c_in, c_out, c_hidden, num_layers, dp_rate, dataset_name):
         super().__init__()
         # Define MLP-Mixer layers
         self.model = MLPMixer(
@@ -151,10 +209,26 @@ class LitMLPMixer(pl.LightningModule):
             dropout=dp_rate
         )
 
-        # Establish softmax, loss, and metric functions
-        self.softmax_fn = torch.log_softmax
+        # Declare shared function(s)
         self.loss_fn = F.nll_loss
-        self.acc = tm.Accuracy()
+        self.softmax_fn = torch.log_softmax
+
+        # Define step-specific metrics
+        # Train #
+        self.train_acc = tm.Accuracy()
+        # Val #
+        self.val_acc = tm.Accuracy()
+        self.val_prec = tm.Precision()
+        self.val_recall = tm.Recall()
+        self.val_f1 = tm.F1()
+        # Test #
+        self.test_acc = tm.Accuracy()
+        self.test_prec = tm.Precision()
+        self.test_recall = tm.Recall()
+        self.test_f1 = tm.F1()
+
+        # Capture name of dataset being used
+        self.dataset_name = dataset_name.strip().lower()
 
         # Save hyperparameters within LightningModule
         self.save_hyperparameters()
@@ -164,36 +238,79 @@ class LitMLPMixer(pl.LightningModule):
         images, labels = data[0], data[1]
         x = self.model(images)
 
-        # Loss and accuracy calculation
+        # Loss calculation
         x = self.softmax_fn(x, dim=1)
         loss = self.loss_fn(x, labels)
-        acc = self.acc(x, labels)
 
-        return loss, acc
+        return x, labels, loss
 
-    def training_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
+    def training_step(self, *args, **kwargs) -> pl.utilities.types.STEP_OUTPUT:
+        x, labels, loss = self.shared_step(args[0])
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        return loss
+        self.log("train_acc", self.train_acc(x, labels), on_step=False, on_epoch=True)
+
+        return {
+            'loss': loss
+        }
 
     def training_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+        # Reset training metrics
+        self.train_acc.reset()
 
-    def validation_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
-        self.log("val_loss", loss)
-        self.log("val_acc", acc)
+    def validation_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
+        x, labels, loss = self.shared_step(args[0])
+        self.log('val_loss', loss)
+        # TODO: Investigate metrics being the same results
+        self.log("val_acc", self.val_acc(x, labels))
+        self.log("val_prec", self.val_prec(x, labels))
+        self.log("val_recall", self.val_recall(x, labels))
+        self.log("val_f1", self.val_f1(x, labels))
+
+        return {
+            'loss': loss,
+            'x': x,
+            'labels': labels
+        }
 
     def validation_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+        # Reset validation metrics
+        self.val_acc.reset()
+        self.val_prec.reset()
+        self.val_recall.reset()
+        self.val_f1.reset()
 
-    def test_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
-        self.log("test_loss", loss)
-        self.log("test_acc", acc)
+    def test_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
+        x, labels, loss = self.shared_step(args[0])
+        self.log('test_loss', loss)
+        self.log("test_acc", self.test_acc(x, labels))
+        self.log("test_prec", self.test_prec(x, labels))
+        self.log("test_recall", self.test_recall(x, labels))
+        self.log("test_f1", self.test_f1(x, labels))
+
+        return {
+            'loss': loss,
+            'x': x,
+            'labels': labels
+        }
 
     def test_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+        # Reset test metrics
+        self.test_acc.reset()
+        self.test_prec.reset()
+        self.test_recall.reset()
+        self.test_f1.reset()
+        # Plot total test confusion matrix
+        xs = torch.cat([output['x'] for output in outputs])
+        labels = torch.cat([output['labels'] for output in outputs])
+        class_names = FASHION_MNIST_CLASS_NAMES if 'fashion' in self.dataset_name else MNIST_CLASS_NAMES
+        title = 'Fashion MNIST Confusion Matrix' if 'fashion' in self.dataset_name else 'MNIST Confusion Matrix'
+        total_test_conf_mat = wandb.plot.confusion_matrix(
+            y_true=labels.cpu().numpy(),
+            probs=xs.cpu().numpy(),
+            class_names=class_names,
+            title=title
+        )
+        self.trainer.logger.experiment.log({'test_conf_mat': total_test_conf_mat})
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
@@ -203,7 +320,7 @@ class LitMLPMixer(pl.LightningModule):
 class LitCNN(pl.LightningModule):
     """A CNN training module via PyTorch Lightning."""
 
-    def __init__(self, c_in, c_out, c_hidden, dp_rate):
+    def __init__(self, c_in, c_out, c_hidden, dp_rate, dataset_name):
         super().__init__()
         # Define CNN layers
         self.layers = nn.ModuleList([
@@ -232,14 +349,17 @@ class LitCNN(pl.LightningModule):
         self.train_acc = tm.Accuracy()
         # Val #
         self.val_acc = tm.Accuracy()
-        self.val_prec = tm.Accuracy()
+        self.val_prec = tm.Precision()
         self.val_recall = tm.Recall()
         self.val_f1 = tm.F1()
         # Test #
         self.test_acc = tm.Accuracy()
-        self.test_prec = tm.Accuracy()
+        self.test_prec = tm.Precision()
         self.test_recall = tm.Recall()
         self.test_f1 = tm.F1()
+
+        # Capture name of dataset being used
+        self.dataset_name = dataset_name.strip().lower()
 
         # Save hyperparameters within LightningModule
         self.save_hyperparameters()
@@ -277,6 +397,7 @@ class LitCNN(pl.LightningModule):
 
     def validation_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        self.log('val_loss', loss)
         self.log("val_acc", self.val_acc(x, labels))
         self.log("val_prec", self.val_prec(x, labels))
         self.log("val_recall", self.val_recall(x, labels))
@@ -297,6 +418,7 @@ class LitCNN(pl.LightningModule):
 
     def test_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        self.log('test_loss', loss)
         self.log("test_acc", self.test_acc(x, labels))
         self.log("test_prec", self.test_prec(x, labels))
         self.log("test_recall", self.test_recall(x, labels))
@@ -317,11 +439,13 @@ class LitCNN(pl.LightningModule):
         # Plot total test confusion matrix
         xs = torch.cat([output['x'] for output in outputs])
         labels = torch.cat([output['labels'] for output in outputs])
+        class_names = FASHION_MNIST_CLASS_NAMES if 'fashion' in self.dataset_name else MNIST_CLASS_NAMES
+        title = 'Fashion MNIST Confusion Matrix' if 'fashion' in self.dataset_name else 'MNIST Confusion Matrix'
         total_test_conf_mat = wandb.plot.confusion_matrix(
             y_true=labels.cpu().numpy(),
             probs=xs.cpu().numpy(),
-            class_names=MNIST_CLASS_NAMES,
-            title='MNIST Confusion Matrix'
+            class_names=class_names,
+            title=title
         )
         self.trainer.logger.experiment.log({'test_conf_mat': total_test_conf_mat})
 

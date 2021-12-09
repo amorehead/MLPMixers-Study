@@ -20,7 +20,7 @@ from modules import LitMLPMixer, LitMLP, LitCNN
 pl.seed_everything(RAND_SEED)
 
 # Ensure that all operations are deterministic on GPU (if used) for reproducibility
-torch.backends.cudnn.determinstic = True
+torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 # Create checkpoint path if it doesn't exist yet
@@ -85,7 +85,8 @@ def train_image_classifier(model_name, train_dataset, val_dataset, test_dataset,
 
 
 if __name__ == '__main__':
+    model_name = 'CNN'  # Choices are ['MLP', 'MLPMixer', 'CNN']
     image_nn_model = train_image_classifier(
-        model_name='CNN', train_dataset=train_ds, val_dataset=val_ds,
+        model_name=model_name, train_dataset=train_ds, val_dataset=val_ds,
         test_dataset=test_ds, c_hidden=128, num_layers=5, dp_rate=0.2, log_with_wandb=True
     )

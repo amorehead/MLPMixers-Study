@@ -12,3 +12,6 @@ DATASET_PATH = '~/data/'  # Path to the folder where the datasets are/should be 
 CHECKPOINT_BASE_PATH = '~/savedmodels/'  # Path to the folder where the pretrained models are saved
 CHECKPOINT_PATH = os.path.join(CHECKPOINT_BASE_PATH, "NNs/")  # Where to save checkpoints
 NUM_CLASSES = 10  # Number of classes in the MNIST dataset
+MNIST_CLASS_NAMES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+FASHION_MNIST_CLASS_NAMES = ['T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat',
+                             'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']

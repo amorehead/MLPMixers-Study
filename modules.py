@@ -1,17 +1,19 @@
 # Functional tools
 from functools import partial
-
 # PyTorch Lightning
+from typing import Optional
+
 import pytorch_lightning as pl
 # PyTorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchmetrics as tm
-# Einstein operations
 from einops.layers.torch import Rearrange, Reduce
-# PyTorch Lightning
-from pytorch_lightning.utilities.types import EPOCH_OUTPUT
+
+# Einstein operations
+import wandb
+from constants import NUM_CLASSES, MNIST_CLASS_NAMES
 
 
 class PreNormResidual(nn.Module):
@@ -109,7 +111,7 @@ class LitMLP(pl.LightningModule):
         self.log("train_loss", loss, on_step=False, on_epoch=True)
         return loss
 
-    def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def training_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
         self.acc.reset()
 
     def validation_step(self, batch, batch_idx):
@@ -117,7 +119,7 @@ class LitMLP(pl.LightningModule):
         self.log("val_loss", loss)
         self.log("val_acc", acc)
 
-    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def validation_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
         self.acc.reset()
 
     def test_step(self, batch, batch_idx):
@@ -125,7 +127,7 @@ class LitMLP(pl.LightningModule):
         self.log("test_loss", loss)
         self.log("test_acc", acc)
 
-    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def test_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
         self.acc.reset()
 
     def configure_optimizers(self):
@@ -174,7 +176,7 @@ class LitMLPMixer(pl.LightningModule):
         self.log("train_loss", loss, on_step=False, on_epoch=True)
         return loss
 
-    def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def training_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
         self.acc.reset()
 
     def validation_step(self, batch, batch_idx):
@@ -182,7 +184,7 @@ class LitMLPMixer(pl.LightningModule):
         self.log("val_loss", loss)
         self.log("val_acc", acc)
 
-    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def validation_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
         self.acc.reset()
 
     def test_step(self, batch, batch_idx):
@@ -190,7 +192,7 @@ class LitMLPMixer(pl.LightningModule):
         self.log("test_loss", loss)
         self.log("test_acc", acc)
 
-    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+    def test_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
         self.acc.reset()
 
     def configure_optimizers(self):
@@ -221,19 +223,32 @@ class LitCNN(pl.LightningModule):
         # Define classification MLP
         self.clsf_mlp = nn.Linear(c_hidden * 2 * (7 * 7), c_out)
 
-        # Establish softmax, loss, and metric functions
-        self.softmax_fn = torch.log_softmax
+        # Declare shared function(s)
         self.loss_fn = F.nll_loss
-        self.acc = tm.Accuracy()
+        self.softmax_fn = torch.log_softmax
+
+        # Define step-specific metrics
+        # Train #
+        self.train_acc = tm.Accuracy()
+        # Val #
+        self.val_acc = tm.Accuracy()
+        self.val_prec = tm.Accuracy()
+        self.val_recall = tm.Recall()
+        self.val_f1 = tm.F1()
+        # Test #
+        self.test_acc = tm.Accuracy()
+        self.test_prec = tm.Accuracy()
+        self.test_recall = tm.Recall()
+        self.test_f1 = tm.F1()
 
         # Save hyperparameters within LightningModule
         self.save_hyperparameters()
 
     def shared_step(self, data):
-        # Data retrieval
+        # Retrieve data
         x, labels = data[0], data[1]
 
-        # Forward pass
+        # Forward propagate
         for layer in self.layers:
             x = layer(x)
 
@@ -241,36 +256,74 @@ class LitCNN(pl.LightningModule):
         x = x.view(x.size(0), -1)  # Flatten output shape of the last CNN layer to (batch_size, 32 * 7 * 7)
         x = self.clsf_mlp(x)
 
-        # Loss and accuracy calculation
+        # Make loss and confusion matrix calculations
         x = self.softmax_fn(x, dim=1)
         loss = self.loss_fn(x, labels)
-        acc = self.acc(x, labels)
 
-        return loss, acc
+        return x, labels, loss
 
-    def training_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
+    def training_step(self, *args, **kwargs) -> pl.utilities.types.STEP_OUTPUT:
+        x, labels, loss = self.shared_step(args[0])
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        return loss
+        self.log("train_acc", self.train_acc(x, labels), on_step=False, on_epoch=True)
 
-    def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+        return {
+            'loss': loss
+        }
 
-    def validation_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
-        self.log("val_loss", loss)
-        self.log("val_acc", acc)
+    def training_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
+        # Reset training metrics
+        self.train_acc.reset()
 
-    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+    def validation_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
+        x, labels, loss = self.shared_step(args[0])
+        self.log("val_acc", self.val_acc(x, labels))
+        self.log("val_prec", self.val_prec(x, labels))
+        self.log("val_recall", self.val_recall(x, labels))
+        self.log("val_f1", self.val_f1(x, labels))
 
-    def test_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
-        self.log("test_loss", loss)
-        self.log("test_acc", acc)
+        return {
+            'loss': loss,
+            'x': x,
+            'labels': labels
+        }
 
-    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        self.acc.reset()
+    def validation_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
+        # Reset validation metrics
+        self.val_acc.reset()
+        self.val_prec.reset()
+        self.val_recall.reset()
+        self.val_f1.reset()
+
+    def test_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
+        x, labels, loss = self.shared_step(args[0])
+        self.log("test_acc", self.test_acc(x, labels))
+        self.log("test_prec", self.test_prec(x, labels))
+        self.log("test_recall", self.test_recall(x, labels))
+        self.log("test_f1", self.test_f1(x, labels))
+
+        return {
+            'loss': loss,
+            'x': x,
+            'labels': labels
+        }
+
+    def test_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
+        # Reset test metrics
+        self.test_acc.reset()
+        self.test_prec.reset()
+        self.test_recall.reset()
+        self.test_f1.reset()
+        # Plot total test confusion matrix
+        xs = torch.cat([output['x'] for output in outputs])
+        labels = torch.cat([output['labels'] for output in outputs])
+        total_test_conf_mat = wandb.plot.confusion_matrix(
+            y_true=labels.cpu().numpy(),
+            probs=xs.cpu().numpy(),
+            class_names=MNIST_CLASS_NAMES,
+            title='MNIST Confusion Matrix'
+        )
+        self.trainer.logger.experiment.log({'test_conf_mat': total_test_conf_mat})
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)

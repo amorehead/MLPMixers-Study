@@ -85,17 +85,17 @@ class LitMLP(pl.LightningModule):
 
         # Define step-specific metrics
         # Train #
-        self.train_acc = tm.Accuracy()
+        self.train_acc = tm.Accuracy(num_classes=10, average='macro')
         # Val #
-        self.val_acc = tm.Accuracy()
-        self.val_prec = tm.Precision()
-        self.val_recall = tm.Recall()
-        self.val_f1 = tm.F1()
+        self.val_acc = tm.Accuracy(num_classes=10, average='macro')
+        self.val_prec = tm.Precision(num_classes=10, average='macro')
+        self.val_recall = tm.Recall(num_classes=10, average='macro')
+        self.val_f1 = tm.F1(num_classes=10, average='macro')
         # Test #
-        self.test_acc = tm.Accuracy()
-        self.test_prec = tm.Precision()
-        self.test_recall = tm.Recall()
-        self.test_f1 = tm.F1()
+        self.test_acc = tm.Accuracy(num_classes=10, average='macro')
+        self.test_prec = tm.Precision(num_classes=10, average='macro')
+        self.test_recall = tm.Recall(num_classes=10, average='macro')
+        self.test_f1 = tm.F1(num_classes=10, average='macro')
 
         # Capture name of dataset being used
         self.dataset_name = dataset_name.strip().lower()
@@ -123,8 +123,9 @@ class LitMLP(pl.LightningModule):
 
     def training_step(self, *args, **kwargs) -> pl.utilities.types.STEP_OUTPUT:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_acc", self.train_acc(x, labels), on_step=False, on_epoch=True)
+        self.log("train_acc", self.train_acc(class_preds, labels), on_step=False, on_epoch=True)
 
         return {
             'loss': loss
@@ -136,11 +137,12 @@ class LitMLP(pl.LightningModule):
 
     def validation_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log('val_loss', loss)
-        self.log("val_acc", self.val_acc(x, labels))
-        self.log("val_prec", self.val_prec(x, labels))
-        self.log("val_recall", self.val_recall(x, labels))
-        self.log("val_f1", self.val_f1(x, labels))
+        self.log("val_acc", self.val_acc(class_preds, labels))
+        self.log("val_prec", self.val_prec(class_preds, labels))
+        self.log("val_recall", self.val_recall(class_preds, labels))
+        self.log("val_f1", self.val_f1(class_preds, labels))
 
         return {
             'loss': loss,
@@ -157,11 +159,12 @@ class LitMLP(pl.LightningModule):
 
     def test_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log('test_loss', loss)
-        self.log("test_acc", self.test_acc(x, labels))
-        self.log("test_prec", self.test_prec(x, labels))
-        self.log("test_recall", self.test_recall(x, labels))
-        self.log("test_f1", self.test_f1(x, labels))
+        self.log("test_acc", self.test_acc(class_preds, labels))
+        self.log("test_prec", self.test_prec(class_preds, labels))
+        self.log("test_recall", self.test_recall(class_preds, labels))
+        self.log("test_f1", self.test_f1(class_preds, labels))
 
         return {
             'loss': loss,
@@ -215,17 +218,17 @@ class LitMLPMixer(pl.LightningModule):
 
         # Define step-specific metrics
         # Train #
-        self.train_acc = tm.Accuracy()
+        self.train_acc = tm.Accuracy(num_classes=10, average='macro')
         # Val #
-        self.val_acc = tm.Accuracy()
-        self.val_prec = tm.Precision()
-        self.val_recall = tm.Recall()
-        self.val_f1 = tm.F1()
+        self.val_acc = tm.Accuracy(num_classes=10, average='macro')
+        self.val_prec = tm.Precision(num_classes=10, average='macro')
+        self.val_recall = tm.Recall(num_classes=10, average='macro')
+        self.val_f1 = tm.F1(num_classes=10, average='macro')
         # Test #
-        self.test_acc = tm.Accuracy()
-        self.test_prec = tm.Precision()
-        self.test_recall = tm.Recall()
-        self.test_f1 = tm.F1()
+        self.test_acc = tm.Accuracy(num_classes=10, average='macro')
+        self.test_prec = tm.Precision(num_classes=10, average='macro')
+        self.test_recall = tm.Recall(num_classes=10, average='macro')
+        self.test_f1 = tm.F1(num_classes=10, average='macro')
 
         # Capture name of dataset being used
         self.dataset_name = dataset_name.strip().lower()
@@ -239,15 +242,16 @@ class LitMLPMixer(pl.LightningModule):
         x = self.model(images)
 
         # Loss calculation
-        x = self.softmax_fn(x, dim=1)
-        loss = self.loss_fn(x, labels)
+        x_log_softmax = self.softmax_fn(x, dim=1)
+        loss = self.loss_fn(x_log_softmax, labels)
 
-        return x, labels, loss
+        return torch.softmax(x, dim=1), labels, loss
 
     def training_step(self, *args, **kwargs) -> pl.utilities.types.STEP_OUTPUT:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_acc", self.train_acc(x, labels), on_step=False, on_epoch=True)
+        self.log("train_acc", self.train_acc(class_preds, labels), on_step=False, on_epoch=True)
 
         return {
             'loss': loss
@@ -259,12 +263,12 @@ class LitMLPMixer(pl.LightningModule):
 
     def validation_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log('val_loss', loss)
-        # TODO: Investigate metrics being the same results
-        self.log("val_acc", self.val_acc(x, labels))
-        self.log("val_prec", self.val_prec(x, labels))
-        self.log("val_recall", self.val_recall(x, labels))
-        self.log("val_f1", self.val_f1(x, labels))
+        self.log("val_acc", self.val_acc(class_preds, labels))
+        self.log("val_prec", self.val_prec(class_preds, labels))
+        self.log("val_recall", self.val_recall(class_preds, labels))
+        self.log("val_f1", self.val_f1(class_preds, labels))
 
         return {
             'loss': loss,
@@ -281,11 +285,12 @@ class LitMLPMixer(pl.LightningModule):
 
     def test_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log('test_loss', loss)
-        self.log("test_acc", self.test_acc(x, labels))
-        self.log("test_prec", self.test_prec(x, labels))
-        self.log("test_recall", self.test_recall(x, labels))
-        self.log("test_f1", self.test_f1(x, labels))
+        self.log("test_acc", self.test_acc(class_preds, labels))
+        self.log("test_prec", self.test_prec(class_preds, labels))
+        self.log("test_recall", self.test_recall(class_preds, labels))
+        self.log("test_f1", self.test_f1(class_preds, labels))
 
         return {
             'loss': loss,
@@ -346,17 +351,17 @@ class LitCNN(pl.LightningModule):
 
         # Define step-specific metrics
         # Train #
-        self.train_acc = tm.Accuracy()
+        self.train_acc = tm.Accuracy(num_classes=10, average='macro')
         # Val #
-        self.val_acc = tm.Accuracy()
-        self.val_prec = tm.Precision()
-        self.val_recall = tm.Recall()
-        self.val_f1 = tm.F1()
+        self.val_acc = tm.Accuracy(num_classes=10, average='macro')
+        self.val_prec = tm.Precision(num_classes=10, average='macro')
+        self.val_recall = tm.Recall(num_classes=10, average='macro')
+        self.val_f1 = tm.F1(num_classes=10, average='macro')
         # Test #
-        self.test_acc = tm.Accuracy()
-        self.test_prec = tm.Precision()
-        self.test_recall = tm.Recall()
-        self.test_f1 = tm.F1()
+        self.test_acc = tm.Accuracy(num_classes=10, average='macro')
+        self.test_prec = tm.Precision(num_classes=10, average='macro')
+        self.test_recall = tm.Recall(num_classes=10, average='macro')
+        self.test_f1 = tm.F1(num_classes=10, average='macro')
 
         # Capture name of dataset being used
         self.dataset_name = dataset_name.strip().lower()
@@ -384,8 +389,9 @@ class LitCNN(pl.LightningModule):
 
     def training_step(self, *args, **kwargs) -> pl.utilities.types.STEP_OUTPUT:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_acc", self.train_acc(x, labels), on_step=False, on_epoch=True)
+        self.log("train_acc", self.train_acc(class_preds, labels), on_step=False, on_epoch=True)
 
         return {
             'loss': loss
@@ -397,11 +403,12 @@ class LitCNN(pl.LightningModule):
 
     def validation_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log('val_loss', loss)
-        self.log("val_acc", self.val_acc(x, labels))
-        self.log("val_prec", self.val_prec(x, labels))
-        self.log("val_recall", self.val_recall(x, labels))
-        self.log("val_f1", self.val_f1(x, labels))
+        self.log("val_acc", self.val_acc(class_preds, labels))
+        self.log("val_prec", self.val_prec(class_preds, labels))
+        self.log("val_recall", self.val_recall(class_preds, labels))
+        self.log("val_f1", self.val_f1(class_preds, labels))
 
         return {
             'loss': loss,
@@ -418,11 +425,12 @@ class LitCNN(pl.LightningModule):
 
     def test_step(self, *args, **kwargs) -> Optional[pl.utilities.types.STEP_OUTPUT]:
         x, labels, loss = self.shared_step(args[0])
+        class_preds = torch.argmax(x, dim=1)
         self.log('test_loss', loss)
-        self.log("test_acc", self.test_acc(x, labels))
-        self.log("test_prec", self.test_prec(x, labels))
-        self.log("test_recall", self.test_recall(x, labels))
-        self.log("test_f1", self.test_f1(x, labels))
+        self.log("test_acc", self.test_acc(class_preds, labels))
+        self.log("test_prec", self.test_prec(class_preds, labels))
+        self.log("test_recall", self.test_recall(class_preds, labels))
+        self.log("test_f1", self.test_f1(class_preds, labels))
 
         return {
             'loss': loss,

@@ -94,5 +94,5 @@ def train_image_classifier(model_name, dataset_name, train_dataset, val_dataset,
 if __name__ == '__main__':
     image_nn_model = train_image_classifier(
         model_name=model_name, dataset_name=dataset_name, train_dataset=train_ds, val_dataset=val_ds,
-        test_dataset=test_ds, c_hidden=256, num_layers=8, dp_rate=0.2, log_with_wandb=True
+        test_dataset=test_ds, c_hidden=256, num_layers=8, dp_rate=0.2, log_with_wandb=False
     )

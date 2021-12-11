@@ -29,7 +29,7 @@ os.makedirs(CHECKPOINT_BASE_PATH, exist_ok=True)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
 # Define requested model and dataset
-model_name = 'MLPMixer'  # Choices are ['MLP', 'MLPMixer', 'CNN']
+model_name = 'CNN'  # Choices are ['MLP', 'MLPMixer', 'CNN']
 dataset_name = 'MNIST'  # Choices are ['MNIST', 'FASHION-MNIST']
 
 # Init requested dataset
@@ -40,7 +40,7 @@ test_ds = dataset(DATASET_PATH, train=False, download=True, transform=transforms
 
 
 def train_image_classifier(model_name, dataset_name, train_dataset, val_dataset, test_dataset,
-                           c_hidden, num_layers, dp_rate, log_with_wandb):
+                           c_hidden, num_layers, dp_rate, lr, log_with_wandb):
     pl.seed_everything(RAND_SEED)
 
     # Init DataLoader from Dataset
@@ -54,7 +54,7 @@ def train_image_classifier(model_name, dataset_name, train_dataset, val_dataset,
     trainer = pl.Trainer(
         default_root_dir=root_dir,
         callbacks=[ModelCheckpoint(save_weights_only=True, mode="max", monitor="val_f1", save_top_k=3, save_last=True),
-                   EarlyStopping(monitor='val_f1', min_delta=3e-5, patience=50)],
+                   EarlyStopping(monitor='val_loss', min_delta=3e-5, patience=5)],
         gpus=AVAIL_GPUS,
         max_epochs=50,
         progress_bar_refresh_rate=0
@@ -70,13 +70,14 @@ def train_image_classifier(model_name, dataset_name, train_dataset, val_dataset,
     # Initialize new model
     pl.seed_everything(seed=RAND_SEED)
     if model_name.lower() == 'mlp':
-        model = LitMLP(c_out=10, c_hidden=c_hidden, dp_rate=dp_rate, dataset_name=dataset_name)
+        model = LitMLP(c_out=10, c_hidden=c_hidden, num_layers=num_layers,
+                       dp_rate=dp_rate, lr=lr, dataset_name=dataset_name)
     elif model_name.lower() == 'mlpmixer':
-        model = LitMLPMixer(
-            c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers, dp_rate=dp_rate, dataset_name=dataset_name
-        )
+        model = LitMLPMixer(c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers,
+                            dp_rate=dp_rate, lr=lr, dataset_name=dataset_name)
     elif model_name.lower() == 'cnn':
-        model = LitCNN(c_in=1, c_out=10, c_hidden=c_hidden, dp_rate=dp_rate, dataset_name=dataset_name)
+        model = LitCNN(c_in=1, c_out=10, c_hidden=c_hidden, num_layers=num_layers,
+                       dp_rate=dp_rate, lr=lr, dataset_name=dataset_name)
     else:
         raise NotImplementedError(f'The model {model_name} is not currently implemented')
 
@@ -94,5 +95,5 @@ def train_image_classifier(model_name, dataset_name, train_dataset, val_dataset,
 if __name__ == '__main__':
     image_nn_model = train_image_classifier(
         model_name=model_name, dataset_name=dataset_name, train_dataset=train_ds, val_dataset=val_ds,
-        test_dataset=test_ds, c_hidden=256, num_layers=8, dp_rate=0.2, log_with_wandb=False
+        test_dataset=test_ds, c_hidden=128, num_layers=3, dp_rate=0.2, lr=1e-3, log_with_wandb=True
     )

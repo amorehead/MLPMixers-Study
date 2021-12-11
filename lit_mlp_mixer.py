@@ -29,8 +29,8 @@ os.makedirs(CHECKPOINT_BASE_PATH, exist_ok=True)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
 # Define requested model and dataset
-model_name = 'CNN'  # Choices are ['MLP', 'MLPMixer', 'CNN']
-dataset_name = 'MNIST'  # Choices are ['MNIST', 'FASHION-MNIST']
+model_name = 'MLPMixer'  # Choices are ['MLP', 'MLPMixer', 'CNN']
+dataset_name = 'FASHION-MNIST'  # Choices are ['MNIST', 'FASHION-MNIST']
 
 # Init requested dataset
 dataset = FashionMNIST if 'fashion' in dataset_name.strip().lower() else MNIST
@@ -95,5 +95,5 @@ def train_image_classifier(model_name, dataset_name, train_dataset, val_dataset,
 if __name__ == '__main__':
     image_nn_model = train_image_classifier(
         model_name=model_name, dataset_name=dataset_name, train_dataset=train_ds, val_dataset=val_ds,
-        test_dataset=test_ds, c_hidden=128, num_layers=3, dp_rate=0.2, lr=1e-3, log_with_wandb=True
+        test_dataset=test_ds, c_hidden=128, num_layers=15, dp_rate=0.2, lr=1e-3, log_with_wandb=True
     )
